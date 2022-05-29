@@ -124,6 +124,11 @@
 //! selecting an arithmetic backend using one of the `_backend` features.
 //! If no backend is selected, compilation will fail.
 //!
+//! The `elliptic-curve` feature can be enabled to implement traits from the
+//! [elliptic-curve][elliptic-curve_doc] for some types. Specifically `Field`
+//! and `PrimeField` for `Scalar` and `Group` and `GroupEncoding` for
+//! `RistrettoPoint`.
+//!
 //! # Safety
 //!
 //! The `curve25519-dalek` types are designed to make illegal states
@@ -245,6 +250,7 @@
 //! [criterion]: https://github.com/japaric/criterion.rs
 //! [parallel_doc]: https://doc-internal.dalek.rs/curve25519_dalek/backend/vector/avx2/index.html
 //! [subtle_doc]: https://doc.dalek.rs/subtle/
+//! [elliptic-curve_doc]: https://docs.rs/elliptic-curve/
 
 //------------------------------------------------------------------------
 // External dependencies:
@@ -276,6 +282,8 @@ extern crate subtle;
 extern crate bincode;
 #[cfg(feature = "serde")]
 extern crate serde;
+#[cfg(feature = "elliptic-curve")]
+extern crate group;
 
 // Internal macros. Must come first!
 #[macro_use]

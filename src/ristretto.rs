@@ -192,6 +192,8 @@ use traits::BasepointTable;
 use traits::Identity;
 #[cfg(any(feature = "alloc", feature = "std"))]
 use traits::{MultiscalarMul, VartimeMultiscalarMul, VartimePrecomputedMultiscalarMul};
+#[cfg(feature = "elliptic-curve")]
+use digest::generic_array::{typenum::U32, GenericArray};
 
 #[cfg(not(all(
     feature = "simd_backend",
@@ -1099,6 +1101,58 @@ impl Zeroize for RistrettoPoint {
 }
 
 // ------------------------------------------------------------------------
+// elliptic-curve traits
+// ------------------------------------------------------------------------
+
+#[cfg(feature = "elliptic-curve")]
+impl group::Group for RistrettoPoint {
+    type Scalar = Scalar;
+
+    fn random(mut rng: impl RngCore) -> Self {
+        let mut uniform_bytes = [0u8; 64];
+        rng.fill_bytes(&mut uniform_bytes);
+
+        RistrettoPoint::from_uniform_bytes(&uniform_bytes)
+    }
+
+    fn identity() -> Self {
+        Identity::identity()
+    }
+
+    fn generator() -> Self {
+        constants::RISTRETTO_BASEPOINT_POINT
+    }
+
+    fn is_identity(&self) -> Choice {
+        self.ct_eq(&Identity::identity())
+    }
+
+    fn double(&self) -> Self {
+        self + self
+    }
+}
+
+#[cfg(feature = "elliptic-curve")]
+impl group::GroupEncoding for RistrettoPoint {
+    type Repr = GenericArray<u8, U32>;
+
+    /// Attempts to deserialize a group element from its encoding.
+    fn from_bytes(bytes: &Self::Repr) -> subtle::CtOption<Self> {
+        let result = CompressedRistretto::from_slice(bytes).decompress();
+        let choice = (result.is_some() as u8).into();
+        subtle::CtOption::new(result.unwrap_or_default(), choice)
+    }
+
+    fn from_bytes_unchecked(bytes: &Self::Repr) -> subtle::CtOption<Self> {
+        Self::from_bytes(bytes)
+    }
+
+    fn to_bytes(&self) -> Self::Repr {
+        self.compress().to_bytes().into()
+    }
+}
+
+// ------------------------------------------------------------------------
 // Tests
 // ------------------------------------------------------------------------
 
@@ -1381,5 +1435,24 @@ mod test {
 
         assert_eq!(P.compress(), R.compress());
         assert_eq!(Q.compress(), R.compress());
+    }
+
+    #[cfg(feature = "elliptic-curve")]
+    #[test]
+    fn test_group_encoding_invalid() {
+        use group::GroupEncoding;
+
+        assert!(bool::from(RistrettoPoint::from_bytes(&constants::EDWARDS_D.to_bytes().into()).is_none()));
+    }
+
+    #[cfg(feature = "elliptic-curve")]
+    #[test]
+    fn test_group_encoding_round_trip() {
+        use group::GroupEncoding;
+
+        let mut rng = rand::thread_rng();
+        let point = RistrettoPoint::random(&mut rng);
+
+        assert_eq!(RistrettoPoint::from_bytes(&point.to_bytes()).unwrap(), point);
     }
 }
